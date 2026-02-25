@@ -1,67 +1,76 @@
 "use client";
 import React, { useState } from 'react';
 import { RefreshCw, CheckCircle, AlertTriangle, Zap } from 'lucide-react';
-import { simulateDrift } from '@/lib/ai-engine';
+import { simulateDrift, AIAnalysisResult } from '@/lib/ai-engine';
 
-const OptimizationModule = () => {
-    const [isSimulating, setIsSimulating] = useState(false);
-    const [simulationResult, setSimulationResult] = useState<any>(null);
+interface OptimizationModuleProps {
+  analysisData: AIAnalysisResult | null;
+  inputData: { prompt: string; output: string } | null;
+}
 
-    const startSimulation = () => {
-        setIsSimulating(true);
-        setTimeout(() => {
-            const result = simulateDrift(0.12, 0.75); // 12% base failure, 75% patch strength
-            setSimulationResult(result);
-            setIsSimulating(false);
-        }, 1500);
-    };
+const OptimizationModule: React.FC<OptimizationModuleProps> = ({ analysisData, inputData }) => {
+  const [isSimulating, setIsSimulating] = useState(false);
+  const [simulationResult, setSimulationResult] = useState<any>(null);
 
-    return (
-        <div className="glass-card mt-6">
-            <div className="flex justify-between items-center mb-6">
-                <div>
-                    <h3 className="outfit">Prompt Patch Recommender</h3>
-                    <p className="text-sm opacity-50">AI-suggested improvements for "Summarize Vendor Review"</p>
-                </div>
-                <button
-                    className="simulate-btn"
-                    onClick={startSimulation}
-                    disabled={isSimulating}
-                >
-                    {isSimulating ? <RefreshCw className="animate-spin" size={16} /> : 'Run Drift Simulation'}
-                </button>
-            </div>
+  const startSimulation = () => {
+    setIsSimulating(true);
+    setTimeout(() => {
+      const baseRate = analysisData?.riskScore || 0.12;
+      const result = simulateDrift(baseRate, 0.75); // 75% patch strength
+      setSimulationResult(result);
+      setIsSimulating(false);
+    }, 1500);
+  };
 
-            <div className="patch-container">
-                <div className="patch-item original">
-                    <div className="patch-label">Current Prompt</div>
-                    <p>"Summarize the compliance requirements for vendor review."</p>
-                </div>
-                <div className="arrow">→</div>
-                <div className="patch-item suggested">
-                    <div className="patch-label">Suggested Patch</div>
-                    <p>"Summarize the compliance requirements for vendor review. **Strictly cite section numbers from the Compliance PDF. If unsure, state 'Consult Legal'.**"</p>
-                </div>
-            </div>
+  return (
+    <div className="glass-card mt-6">
+      <div className="flex justify-between items-center mb-6">
+        <div>
+          <h3 className="outfit">Prompt Patch Recommender</h3>
+          <p className="text-sm opacity-50">AI-suggested improvements for analyzed interaction</p>
+        </div>
+        <button
+          className="simulate-btn"
+          onClick={startSimulation}
+          disabled={isSimulating || !analysisData}
+        >
+          {isSimulating ? <RefreshCw className="animate-spin" size={16} /> : 'Run Drift Simulation'}
+        </button>
+      </div>
 
-            {simulationResult && (
-                <div className="simulation-results active">
-                    <div className="result-metric">
-                        <span className="label">Projected Hallucination Rate</span>
-                        <span className="value">12% → 3.1%</span>
-                    </div>
-                    <div className="result-metric">
-                        <span className="label">Confidence Score</span>
-                        <span className="value">94.2%</span>
-                    </div>
-                    <div className="result-metric">
-                        <span className="label">Cost Impact</span>
-                        <span className="value">+0.02c / 1k</span>
-                    </div>
-                </div>
-            )}
+      <div className="patch-container">
+        <div className="patch-item original">
+          <div className="patch-label">Current Prompt</div>
+          <p>"{inputData?.prompt || 'Summarize the compliance requirements for vendor review.'}"</p>
+        </div>
+        <div className="arrow">→</div>
+        <div className="patch-item suggested">
+          <div className="patch-label">Suggested Patch</div>
+          <p>{analysisData?.optimizationPatch || '"Wait for analysis..."'}</p>
+        </div>
+      </div>
 
-            <style jsx>{`
+      {simulationResult && (
+        <div className="simulation-results active">
+          <div className="result-metric">
+            <span className="label">Projected Failure Rate</span>
+            <span className="value">
+              {(analysisData?.riskScore ? analysisData.riskScore * 100 : 12).toFixed(1)}% →
+              {(analysisData?.riskScore ? analysisData.riskScore * 100 * 0.25 : 3.1).toFixed(1)}%
+            </span>
+          </div>
+          <div className="result-metric">
+            <span className="label">Optimization Confidence</span>
+            <span className="value">94.2%</span>
+          </div>
+          <div className="result-metric">
+            <span className="label">Cost Impact</span>
+            <span className="value">Stable</span>
+          </div>
+        </div>
+      )}
+
+      <style jsx>{`
         .mt-6 { margin-top: 24px; }
         .flex { display: flex; }
         .justify-between { justify-content: space-between; }
@@ -86,7 +95,9 @@ const OptimizationModule = () => {
           transition: transform 0.2s;
         }
 
-        .simulate-btn:hover {
+        .simulate-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+        .simulate-btn:not(:disabled):hover {
           transform: scale(1.02);
           box-shadow: 0 0 20px rgba(59, 130, 246, 0.4);
         }
@@ -104,6 +115,7 @@ const OptimizationModule = () => {
           border: 1px solid var(--card-border);
           padding: 16px;
           border-radius: 12px;
+          min-height: 100px;
         }
 
         .patch-label {
@@ -150,8 +162,8 @@ const OptimizationModule = () => {
           color: var(--accent);
         }
       `}</style>
-        </div>
-    );
+    </div>
+  );
 };
 
 export default OptimizationModule;

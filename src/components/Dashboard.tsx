@@ -28,14 +28,21 @@ import DriftMonitor from './DriftMonitor';
 import SemanticClusters from './SemanticClusters';
 import CausalAnalysis from './CausalAnalysis';
 
-const Dashboard = () => {
+import { AIAnalysisResult } from '@/lib/ai-engine';
+
+interface DashboardProps {
+    analysisData: AIAnalysisResult | null;
+    inputData: { prompt: string; output: string } | null;
+}
+
+const Dashboard: React.FC<DashboardProps> = ({ analysisData, inputData }) => {
     const metrics = generateMetrics();
     const failureData = [
-        { name: 'Hallucination', value: 35, color: '#ef4444' },
-        { name: 'Incomplete', value: 25, color: '#f59e0b' },
-        { name: 'Policy', value: 15, color: '#8b5cf6' },
-        { name: 'Tone', value: 20, color: '#3b82f6' },
-        { name: 'Other', value: 5, color: '#10b981' },
+        { name: 'Hallucination', value: analysisData?.failureType === 'Hallucination' ? 100 : 35, color: '#ef4444' },
+        { name: 'Incomplete', value: analysisData?.failureType === 'Incomplete Reasoning' ? 100 : 25, color: '#f59e0b' },
+        { name: 'Policy', value: analysisData?.failureType === 'Policy Violation' ? 100 : 15, color: '#8b5cf6' },
+        { name: 'Tone', value: analysisData?.failureType === 'Tone Mismatch' ? 100 : 20, color: '#3b82f6' },
+        { name: 'None', value: analysisData?.failureType === 'None' ? 100 : 5, color: '#10b981' },
     ];
 
     return (
@@ -117,6 +124,28 @@ const Dashboard = () => {
                     </div>
                 </div>
             </div>
+
+            {analysisData && (
+                <div className="glass-card reasoning-banner mt-6">
+                    <div className="flex items-center gap-4 mb-4">
+                        <div className="pulse-icon"></div>
+                        <h3 className="outfit">Latent Reasoning Analysis</h3>
+                    </div>
+                    <div className="reasoning-text">
+                        {analysisData.reasoning}
+                    </div>
+                    <div className="flex gap-6 mt-4">
+                        <div className="sub-metric">
+                            <span className="label">Analysis Confidence</span>
+                            <span className="val">{(analysisData.confidence * 100).toFixed(1)}%</span>
+                        </div>
+                        <div className="sub-metric">
+                            <span className="label">Failure Certainty</span>
+                            <span className="val">{analysisData.riskScore > 0.8 ? 'High' : analysisData.riskScore > 0.4 ? 'Medium' : 'Low'}</span>
+                        </div>
+                    </div>
+                </div>
+            )}
 
             {/* Charts Section */}
             <div className="charts-grid">
@@ -204,7 +233,7 @@ const Dashboard = () => {
                 <SemanticClusters />
                 <CausalAnalysis />
             </div>
-            <OptimizationModule />
+            <OptimizationModule analysisData={analysisData} inputData={inputData} />
 
             {/* Latest Logs */}
             <div className="glass-card logs-container">
@@ -223,6 +252,33 @@ const Dashboard = () => {
                         </tr>
                     </thead>
                     <tbody>
+                        {analysisData && inputData && (
+                            <tr style={{ background: 'rgba(59, 130, 246, 0.1)' }}>
+                                <td>{new Date().toLocaleTimeString()}</td>
+                                <td>
+                                    <div className="prompt-preview">{inputData.prompt}</div>
+                                </td>
+                                <td>
+                                    <span className={`tag ${analysisData.failureType.toLowerCase().replace(' ', '-')}`}>
+                                        {analysisData.failureType}
+                                    </span>
+                                </td>
+                                <td>
+                                    <div className="risk-indicator">
+                                        <div
+                                            className="risk-bar"
+                                            style={{
+                                                width: `${analysisData.riskScore * 100}%`,
+                                                background: analysisData.riskScore > 0.7 ? '#ef4444' : analysisData.riskScore > 0.3 ? '#f59e0b' : '#10b981'
+                                            }}
+                                        />
+                                    </div>
+                                </td>
+                                <td>
+                                    <button className="action-btn">Optimize</button>
+                                </td>
+                            </tr>
+                        )}
                         {mockSignals.map((signal) => (
                             <tr key={signal.id}>
                                 <td>{new Date(signal.timestamp).toLocaleTimeString()}</td>
@@ -409,6 +465,10 @@ const Dashboard = () => {
         .none { background: rgba(16, 185, 129, 0.1); color: #10b981; }
         .hallucination { background: rgba(239, 68, 68, 0.1); color: #ef4444; }
         .incomplete-reasoning { background: rgba(245, 158, 11, 0.1); color: #f59e0b; }
+        .policy-violation { background: rgba(139, 92, 246, 0.1); color: #8b5cf6; }
+        .tone-mismatch { background: rgba(59, 130, 246, 0.1); color: #3b82f6; }
+        .unsafe-assumption { background: rgba(239, 68, 68, 0.1); color: #f87171; }
+        .engine-error { background: rgba(255, 255, 255, 0.1); color: #9ca3af; }
 
         .risk-indicator {
           width: 100px;
@@ -438,6 +498,44 @@ const Dashboard = () => {
           background: var(--primary);
           color: white;
         }
+
+        .reasoning-banner {
+          background: linear-gradient(135deg, rgba(59, 130, 246, 0.05) 0%, rgba(139, 92, 246, 0.05) 100%);
+          border: 1px solid rgba(59, 130, 246, 0.2);
+          padding: 24px;
+          border-radius: 20px;
+        }
+
+        .reasoning-text {
+          font-size: 1.1rem;
+          line-height: 1.6;
+          color: rgba(255,255,255,0.9);
+          font-style: italic;
+        }
+
+        .pulse-icon {
+          width: 12px;
+          height: 12px;
+          background: #3b82f6;
+          border-radius: 50%;
+          box-shadow: 0 0 0 0 rgba(59, 130, 246, 0.7);
+          animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+          0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(59, 130, 246, 0.7); }
+          70% { transform: scale(1); box-shadow: 0 0 0 10px rgba(59, 130, 246, 0); }
+          100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(59, 130, 246, 0); }
+        }
+
+        .sub-metric {
+          display: flex;
+          flex-direction: column;
+          gap: 4px;
+        }
+
+        .sub-metric .label { font-size: 0.75rem; opacity: 0.5; text-transform: uppercase; letter-spacing: 1px; }
+        .sub-metric .val { font-weight: 700; font-size: 1rem; color: #fff; }
 
         .mb-6 { margin-bottom: 24px; }
         .flex { display: flex; }
